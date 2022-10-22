@@ -21,52 +21,51 @@ const PASSIVE: u8 = b'\x01';
 const QUERY_CMD: u8 = b'\x04';
 
 // The sleep command ID
-// TODO
-//const SLEEP_CMD: u8 = b'\x06';
+const SLEEP_CMD: u8 = b'\x06';
+
 // Sleep and work byte
-// TODO
-// const SLEEP: u8 = b'\x00';
-// const WORK: u8= b'\x01';
+const SLEEP: u8 = b'\x00';
+const WORK: u8= b'\x01';
 
 // The work period command ID
 const WORK_PERIOD_CMD: u8 = b'\x08';
 
-/// Struct holds a link to a sensor and provides functions to interact with it
-///
-/// Example:
-/// ```
-/// use sds011::{SDS011};
-/// use std::thread::sleep;
-/// use std::time::{Duration};
-///
-/// match SDS011::new(port) {
-///     Ok(mut sensor) => {
-///         sensor.set_work_period(work_period).unwrap();
-///
-///         loop {
-///             if let Some(m) = sensor.query() {
-///                 println!("{:?}", m);
-///             }
-///
-///             sleep(Duration::from_secs(5u64 * 60));
-///         }
-///     },
-///     Err(e) => println!("{:?}", e.description),
-/// };
-/// ```
+// Struct holds a link to a sensor and provides functions to interact with it
+//
+// Example:
+// ```
+// use sds011::{SDS011};
+// use std::thread::sleep;
+// use std::time::{Duration};
+//
+// match SDS011::new(port) {
+//     Ok(mut sensor) => {
+//         sensor.set_work_period(work_period).unwrap();
+//
+//         loop {
+//             if let Some(m) = sensor.query() {
+//                 println!("{:?}", m);
+//             }
+//
+//             sleep(Duration::from_secs(5u64 * 60));
+//         }
+//     },
+//     Err(e) => println!("{:?}", e.description),
+// };
+// ```
 pub struct SDS011 {
-    /// Link to a sensor, must be open via new()
+    // Link to a sensor, must be open via new()
     port: Box<dyn SerialPort>,
 }
 
-/// Represents a single measurement
+// Represents a single measurement
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct Message {
-    /// A timestamp in UNIX format
+    // A timestamp in UNIX format
     pub timestamp: String,
-    /// PM2.5 particles
+    // PM2.5 particles
     pub pm25: f32,
-    /// PM10 particles
+    // PM10 particles
     pub pm10: f32,
 }
 
@@ -77,13 +76,13 @@ impl std::fmt::Display for Message {
 }
 
 impl SDS011 {
-    /// Creates new instance of SDS011
-    /// `port` is required, for example `/dev/ttyUSB0`
-    ///
-    /// # Example
-    /// ```
-    /// let mut sensor = SDS011::new("/dev/ttyUSB0").unwrap();
-    /// ```
+    // Creates new instance of SDS011
+    // `port` is required, for example `/dev/ttyUSB0`
+    //
+    // # Example
+    // ```
+    // let mut sensor = SDS011::new("/dev/ttyUSB0").unwrap();
+    // ```
     pub fn new(port: &str) -> Result<SDS011> {
         let s = SerialPortSettings {
             baud_rate: 9600,
@@ -105,8 +104,8 @@ impl SDS011 {
         }
     }
 
-    /// Sets report mode
-    /// TODO at the moment sets WRITE and PASSIVE mode only
+    // Sets report mode
+    // TODO at the moment sets WRITE and PASSIVE mode only
     pub fn set_report_mode(&mut self) -> Result<()> {
         let read = false;
         let active = false;
@@ -124,7 +123,7 @@ impl SDS011 {
         Ok(())
     }
 
-    /// Reads data from the sensor and returns as `Message`
+    // Reads data from the sensor and returns as `Message`
     pub fn query(&mut self) -> Result<Message> {
         let mut cmd = self.cmd_begin();
 
@@ -152,7 +151,7 @@ impl SDS011 {
         })
     }
 
-    /// Returns command header and command ID bytes
+    // Returns command header and command ID bytes
     pub fn cmd_begin(&self) -> Vec<u8> {
         let mut vec = Vec::new();
         vec.push(HEAD);
@@ -160,8 +159,8 @@ impl SDS011 {
         vec
     }
 
-    /// Sets working period
-    /// `work_time` must be between 0 and 30
+    // Sets working period
+    // `work_time` must be between 0 and 30
     pub fn set_work_period(&mut self, work_time: u8) -> Result<()> {
         if work_time > 30 {
             return Err(Error::TooLongWorkTime);
@@ -172,6 +171,21 @@ impl SDS011 {
         cmd.push(WORK_PERIOD_CMD);
         cmd.push(if read { READ } else { WRITE });
         cmd.push(work_time);
+        cmd.append(vec![b'\x00'; 10].as_mut());
+
+        self.finish_cmd(&mut cmd);
+        self.execute(&cmd)?;
+        self.get_reply()?;
+        Ok(())
+    }
+
+    pub fn set_sleep_work(&mut self, sleep: bool) -> Result<()> {
+        let mut cmd = self.cmd_begin();
+        let read= false;
+
+        cmd.push(SLEEP_CMD);
+        cmd.push(if read { READ } else { WRITE });
+        cmd.push( if sleep { SLEEP } else { WORK });
         cmd.append(vec![b'\x00'; 10].as_mut());
 
         self.finish_cmd(&mut cmd);
